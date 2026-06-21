@@ -6,17 +6,22 @@
 }
 
 .i-am-iris {
-    color: #FCE903;
+    color: white;
     font-weight: bold;
     font-size: 24pt;
 }
 
 .lh44 {
-    color: white;
+    color: #FCE903;
 }
 
 .footer {
-    position: fixed;
+    /* position: fixed; */
     bottom: 0;
-    right: 1rem;
+    /* right: 1rem; */
+    color: white;
+}
+
+#lh44image {
+    max-width: 80%;
 }
