@@ -1,0 +1,22 @@
+.container {
+    background-color: #D40000;
+    padding: 1rem;
+    text-align: center;
+    
+}
+
+.i-am-iris {
+    color: #FCE903;
+    font-weight: bold;
+    font-size: 24pt;
+}
+
+.lh44 {
+    color: white;
+}
+
+.footer {
+    position: fixed;
+    bottom: 0;
+    right: 1rem;
+}

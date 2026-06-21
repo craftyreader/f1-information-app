@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Drivers' Championship</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js and DataLabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    
+    <style>
+        body { 
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        .chart-container { 
+            position: relative; 
+            height: 65vh; 
+            width: 100%; 
+            margin-bottom: 4rem; 
+            background-color: #1e293b; /* Slate 800 */
+            padding: 1rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+        .spinner { 
+            border: 4px solid rgba(255,255,255,0.1); 
+            border-left-color: #38bdf8; 
+            border-radius: 50%; 
+            width: 48px; 
+            height: 48px; 
+            animation: spin 1s linear infinite; 
+            margin: 0 auto; 
+        }
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-screen-2xl mx-auto">
+        <h1 class="text-4xl font-bold mb-8 text-center text-white tracking-tight" id="main-title">F1 Drivers' Championship</h1>
+        
+        <!-- Loading State -->
+        <div id="loading" class="text-center py-20">
+            <div class="spinner mb-6"></div>
+            <p id="status-text" class="text-lg font-medium text-sky-400">Connecting to OpenF1 API...</p>
+        </div>
+
+        <!-- Charts Wrapper -->
+        <div id="charts-wrapper" class="hidden">
+            <h2 class="text-2xl font-semibold mb-4 text-white pl-2 border-l-4 border-sky-500">Championship Standings (Position)</h2>
+            <div class="chart-container">
+                <canvas id="chart-standings"></canvas>
+            </div>
+
+            <h2 class="text-2xl font-semibold mb-4 text-white pl-2 border-l-4 border-sky-500">Accumulated Points</h2>
+            <div class="chart-container">
+                <canvas id="chart-points"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Register the DataLabels plugin globally
+        Chart.register(ChartDataLabels);
+
+        // Utility: Adjust color hex (lighten/darken) for teammates
+        function adjustColor(hex, amount) {
+            if (!hex) return '#aaaaaa';
+            hex = hex.replace(/^#/, '');
+            if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+            let r = parseInt(hex.substring(0, 2), 16);
+            let g = parseInt(hex.substring(2, 4), 16);
+            let b = parseInt(hex.substring(4, 6), 16);
+            
+            r = Math.max(0, Math.min(255, r + amount));
+            g = Math.max(0, Math.min(255, g + amount));
+            b = Math.max(0, Math.min(255, b + amount));
+            
+            return `#${(1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1)}`;
+        }
+
+        // Utility: Fallback team colors based on known team patterns
+        function getFallbackColor(teamName) {
+            const t = (teamName || "").toLowerCase();
+            if (t.includes('red bull')) return '#3671C6';
+            if (t.includes('mercedes')) return '#27F4D2';
+            if (t.includes('ferrari')) return '#E8002D';
+            if (t.includes('mclaren')) return '#FF8000';
+            if (t.includes('aston martin')) return '#229971';
+            if (t.includes('alpine')) return '#0093CC';
+            if (t.includes('williams')) return '#64C4FF';
+            if (t.includes('sauber') || t.includes('kick')) return '#52E252';
+            if (t.includes('haas')) return '#B6BABD';
+            if (t.includes('rb') || t.includes('toro') || t.includes('racing bulls')) return '#6692FF';
+            return '#888888';
+        }
+
+        // Fetch wrapper to handle errors
+        async function fetchJson(url) {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`API Error: ${res.status}`);
+            return res.json();
+        }
+
+        async function init() {
+            try {
+                const statusEl = document.getElementById('status-text');
+                let targetYear = new Date().getFullYear();
+
+                // 1. Fetch Meetings (Find latest year that has data)
+                let meetingsRes = [];
+                for (let y = targetYear; y >= 2023; y--) {
+                    try {
+                        meetingsRes = await fetchJson(`https://api.openf1.org/v1/meetings?year=${y}`);
+                        if (meetingsRes && meetingsRes.length > 0) {
+                            targetYear = y;
+                            break;
+                        }
+                    } catch (e) { /* keep trying past years */ }
+                }
+
+                if (meetingsRes.length === 0) throw new Error("Could not find meeting data from OpenF1.");
+                
+                document.getElementById('main-title').innerText = `${targetYear} F1 Drivers' Championship`;
+                statusEl.innerText = `Preparing ${targetYear} season data...`;
+
+                // Sort meetings by date
+                meetingsRes.sort((a,b) => new Date(a.date_start) - new Date(b.date_start));
+                const allMeetingKeys = meetingsRes.map(m => m.meeting_key);
+                const allRaces = meetingsRes.map(m => m.meeting_name);
+                const meetingsMap = {};
+                meetingsRes.forEach(m => meetingsMap[m.meeting_key] = m);
+
+                // 2. Fetch Sessions for the year (to find Race sessions)
+                const sessionsRes = await fetchJson(`https://api.openf1.org/v1/sessions?year=${targetYear}&session_name=Race`);
+                const raceSessions = {};
+                sessionsRes.forEach(s => raceSessions[s.meeting_key] = s);
+
+                // Identify completed races based on the session date
+                const now = new Date();
+                const completedMeetingKeys = meetingsRes
+                    .filter(m => raceSessions[m.meeting_key] && new Date(raceSessions[m.meeting_key].date_start) < now)
+                    .map(m => m.meeting_key);
+
+                if (completedMeetingKeys.length === 0) {
+                    statusEl.innerText = `The ${targetYear} season has no completed races yet.`;
+                    document.querySelector('.spinner').style.display = 'none';
+                    return;
+                }
+
+                // 3. Throttle Fetching of Championship Data (respect API rate limit of 3/sec)
+                const standingsUrls = completedMeetingKeys.map(mk => 
+                    `https://api.openf1.org/v1/championship_drivers?session_key=${raceSessions[mk].session_key}`
+                );
+                
+                const standingsResults = [];
+                const MAX_CONCURRENT = 2; // Process 2 per second max
+                
+                for (let i = 0; i < standingsUrls.length; i += MAX_CONCURRENT) {
+                    statusEl.innerText = `Fetching standings: Race ${Math.min(i + MAX_CONCURRENT, standingsUrls.length)} of ${standingsUrls.length}...`;
+                    const batchUrls = standingsUrls.slice(i, i + MAX_CONCURRENT);
+                    
+                    const startTime = Date.now();
+                    const batchPromises = batchUrls.map(url => fetchJson(url).catch(() => []));
+                    const batchResults = await Promise.all(batchPromises);
+                    standingsResults.push(...batchResults);
+                    
+                    // Enforce ~1 second delay per batch to stay safely under limits
+                    const elapsed = Date.now() - startTime;
+                    if (i + MAX_CONCURRENT < standingsUrls.length && elapsed < 1100) {
+                        await new Promise(r => setTimeout(r, 1100 - elapsed));
+                    }
+                }
+
+                statusEl.innerText = "Processing driver demographics...";
+
+                // 4. Fetch Drivers info (first and latest race to catch mid-season replacements)
+                const firstSessionKey = raceSessions[completedMeetingKeys[0]].session_key;
+                const latestSessionKey = raceSessions[completedMeetingKeys[completedMeetingKeys.length - 1]].session_key;
+                
+                const [driversFirst, driversLatest] = await Promise.all([
+                    fetchJson(`https://api.openf1.org/v1/drivers?session_key=${firstSessionKey}`).catch(() => []),
+                    fetchJson(`https://api.openf1.org/v1/drivers?session_key=${latestSessionKey}`).catch(() => [])
+                ]);
+
+                // 5. Structure Driver Data
+                const driversMap = {};
+                [...driversFirst, ...driversLatest].forEach(d => {
+                    if (!driversMap[d.driver_number]) {
+                        driversMap[d.driver_number] = {
+                            number: d.driver_number,
+                            name: d.name_acronym || d.last_name || d.full_name || `Driver ${d.driver_number}`,
+                            team: d.team_name,
+                            color: d.team_colour ? '#' + d.team_colour : getFallbackColor(d.team_name),
+                            pointsHistory: {},
+                            positionHistory: {}
+                        };
+                    }
+                });
+
+                standingsResults.forEach((standingsList, index) => {
+                    const mk = completedMeetingKeys[index];
+                    standingsList.forEach(standing => {
+                        const dn = standing.driver_number;
+                        if (driversMap[dn]) {
+                            driversMap[dn].pointsHistory[mk] = standing.points_current;
+                            driversMap[dn].positionHistory[mk] = standing.position_current;
+                        }
+                    });
+                });
+
+                // Adjust Colors for Teammates to be distinguishable
+                const teamGroups = {};
+                Object.values(driversMap).forEach(d => {
+                    if (!teamGroups[d.team]) teamGroups[d.team] = [];
+                    teamGroups[d.team].push(d);
+                });
+
+                Object.values(teamGroups).forEach(team => {
+                    team.sort((a,b) => a.number - b.number);
+                    team.forEach((d, i) => {
+                        if (i === 1) { // 2nd driver
+                            d.adjustedColor = adjustColor(d.color, -40); // Darken slightly
+                            d.borderDash = [6, 4]; // Dashed line
+                        } else if (i === 2) { // 3rd driver / Replacement
+                            d.adjustedColor = adjustColor(d.color, 40); // Lighten slightly
+                            d.borderDash = [2, 2]; // Dotted line
+                        } else {
+                            d.adjustedColor = d.color;
+                            d.borderDash = []; // Solid line
+                        }
+                    });
+                });
+
+                // Pre-calculate scales and Y-axis Name placements
+                const maxPos = Math.max(22, ...Object.values(driversMap).map(d => 
+                    Math.max(...Object.values(d.positionHistory).length ? Object.values(d.positionHistory) : [1])
+                ));
+                
+                const finalPosMap = {};
+                Object.values(driversMap).forEach(d => {
+                    const completedKeys = Object.keys(d.positionHistory);
+                    if (completedKeys.length === 0) return;
+                    const lastMk = completedMeetingKeys.slice().reverse().find(mk => d.positionHistory[mk] !== undefined);
+                    if (lastMk) {
+                        const pos = d.positionHistory[lastMk];
+                        if (!finalPosMap[pos]) finalPosMap[pos] = [];
+                        finalPosMap[pos].push(d.name);
+                    }
+                });
+
+                const driversWithPoints = Object.values(driversMap).filter(d => 
+                    Math.max(0, ...Object.values(d.pointsHistory)) > 0
+                );
+                
+                const maxPointsVal = Math.max(0, ...driversWithPoints.flatMap(d => Object.values(d.pointsHistory)));
+                const maxPointsRound = Math.ceil((maxPointsVal || 100) / 50) * 50;
+                
+                const finalPointsMap = {};
+                driversWithPoints.forEach(d => {
+                    const lastMk = completedMeetingKeys.slice().reverse().find(mk => d.pointsHistory[mk] !== undefined);
+                    if (lastMk) {
+                        const pts = d.pointsHistory[lastMk];
+                        if (!finalPointsMap[pts]) finalPointsMap[pts] = [];
+                        finalPointsMap[pts].push(d.name);
+                    }
+                });
+
+                // Global Chart Defaults
+                Chart.defaults.color = '#94a3b8';
+                Chart.defaults.font.family = '-apple-system, sans-serif';
+
+                // ==========================
+                // CHART 1: Standings
+                // ==========================
+                const datasets1 = Object.values(driversMap).map(d => ({
+                    label: d.name,
+                    data: allMeetingKeys.map((mk, i) => {
+                        return d.positionHistory[mk] !== undefined ? 
+                            { x: allRaces[i], y: d.positionHistory[mk], points: d.pointsHistory[mk] } : 
+                            { x: allRaces[i], y: null, points: null };
+                    }),
+                    borderColor: d.adjustedColor,
+                    backgroundColor: d.adjustedColor,
+                    borderDash: d.borderDash,
+                    borderWidth: 2,
+                    tension: 0.1,
+                    spanGaps: true,
+                    pointRadius: 4,
+                    pointHoverRadius: 7
+                }));
+
+                new Chart(document.getElementById('chart-standings').getContext('2d'), {
+                    type: 'line',
+                    data: { labels: allRaces, datasets: datasets1 },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { display: true, position: 'top', labels: { boxWidth: 12, usePointStyle: true } },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(ctx) {
+                                        return `${ctx.dataset.label}: Pos ${ctx.raw.y} (${ctx.raw.points} pts)`;
+                                    }
+                                }
+                            },
+                            datalabels: {
+                                display: (ctx) => ctx.dataset.data[ctx.dataIndex]?.y !== null,
+                                formatter: (val) => val.points,
+                                align: 'top',
+                                offset: 5,
+                                color: (ctx) => ctx.dataset.borderColor,
+                                font: { size: 9, weight: 'bold' }
+                            }
+                        },
+                        scales: {
+                            x: { 
+                                type: 'category', 
+                                ticks: { maxRotation: 45, minRotation: 45 },
+                                grid: { color: '#334155' }
+                            },
+                            y: {
+                                reverse: true, min: 1, max: maxPos,
+                                ticks: { stepSize: 1 },
+                                grid: { color: '#334155' },
+                                title: { display: true, text: 'Standing Position' }
+                            },
+                            yRight: { // Driver Names dynamically written to the Y-axis end
+                                position: 'right', reverse: true, min: 1, max: maxPos,
+                                grid: { display: false },
+                                ticks: {
+                                    autoSkip: false,
+                                    color: '#e2e8f0',
+                                    font: { weight: 'bold' },
+                                    callback: function(val) { return finalPosMap[val] ? finalPosMap[val].join(' / ') : ''; }
+                                },
+                                afterBuildTicks: function(axis) {
+                                    axis.ticks = Object.keys(finalPosMap).map(v => ({ value: parseFloat(v) }));
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // ==========================
+                // CHART 2: Accumulated Points
+                // ==========================
+                const datasets2 = driversWithPoints.map(d => ({
+                    label: d.name,
+                    data: allMeetingKeys.map((mk, i) => {
+                        return d.pointsHistory[mk] !== undefined ? 
+                            { x: allRaces[i], y: d.pointsHistory[mk] } : 
+                            { x: allRaces[i], y: null };
+                    }),
+                    borderColor: d.adjustedColor,
+                    backgroundColor: d.adjustedColor,
+                    borderDash: d.borderDash,
+                    borderWidth: 2,
+                    tension: 0.1,
+                    spanGaps: true,
+                    pointRadius: 4,
+                    pointHoverRadius: 7
+                }));
+
+                new Chart(document.getElementById('chart-points').getContext('2d'), {
+                    type: 'line',
+                    data: { labels: allRaces, datasets: datasets2 },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { display: false }, // Info carried by axis
+                            tooltip: {
+                                callbacks: {
+                                    label: function(ctx) { return `${ctx.dataset.label}: ${ctx.raw.y} pts`; }
+                                }
+                            },
+                            datalabels: { display: false } // Hidden for graph 2 as per instructions
+                        },
+                        scales: {
+                            x: { 
+                                type: 'category', 
+                                ticks: { maxRotation: 45, minRotation: 45 },
+                                grid: { color: '#334155' }
+                            },
+                            y: {
+                                min: 0, max: maxPointsRound,
+                                grid: { color: '#334155' },
+                                title: { display: true, text: 'Accumulated Points' }
+                            },
+                            yRight: { // Driver Names dynamically written to the Y-axis end
+                                position: 'right', min: 0, max: maxPointsRound,
+                                grid: { display: false },
+                                ticks: {
+                                    autoSkip: false,
+                                    color: '#e2e8f0',
+                                    font: { weight: 'bold' },
+                                    callback: function(val) { return finalPointsMap[val] ? finalPointsMap[val].join(' / ') : ''; }
+                                },
+                                afterBuildTicks: function(axis) {
+                                    axis.ticks = Object.keys(finalPointsMap).map(v => ({ value: parseFloat(v) }));
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Display App
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('charts-wrapper').classList.remove('hidden');
+
+            } catch (err) {
+                console.error(err);
+                const statusEl = document.getElementById('status-text');
+                statusEl.innerText = "Error loading F1 data. Please try again later.";
+                statusEl.classList.add('text-red-400');
+                document.querySelector('.spinner').style.display = 'none';
+            }
+        }
+
+        // Boot
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
