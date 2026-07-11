@@ -5,7 +5,9 @@ function decreaseYear () {
         currentYear--;
         document.getElementById("increaseYearButton").disabled = false;
     }
-    else document.getElementById("decreaseYearButton").disabled = true;
+    if(currentYear <= 2023) {
+        document.getElementById("decreaseYearButton").disabled = true;
+    }
     console.log("decreaseYear triggered; " + currentYear);
     document.getElementById("yearText").textContent = currentYear;
 }
@@ -15,7 +17,9 @@ function increaseYear () {
         currentYear++;
         document.getElementById("decreaseYearButton").disabled = false;
     }
-    else document.getElementById("increaseYearButton").disabled = true;
+    if(currentYear >= new Date().getFullYear()) {
+        document.getElementById("increaseYearButton").disabled = true;
+    }
     console.log("increaseYear triggered; " + currentYear);
     document.getElementById("yearText").textContent = currentYear;
 }
