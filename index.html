@@ -8,17 +8,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="author" content="">
   <link rel="stylesheet" href="style.css">
-  <script src="http://code.jquery.com/jquery-latest.min.js"></script>
+  <!-- <script src="http://code.jquery.com/jquery-latest.min.js"></script> -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <script src="script.js" defer></script>
 </head>
 
 <body>
   
-<div class="container">
+<!-- <div class="container">
     <h1 class="lh44">Lewis Hamilton WDC 2026</h1>   
     <p class="i-am-iris">happy father's day!!</p>
     <img id="lh44image" src="lh44_ferraricar.jpg">
     <p class="footer">disclaimer: this is for father's day, I want george russell to win</p>
 
+</div> -->
+
+<div id="yearContainer">
+  <button id="decreaseYearButton">
+    <i class="fa-solid fa-chevron-left"></i>
+  </button>
+  <p id="yearText"></p>
+  <button id="increaseYearButton">
+    <i class="fa-solid fa-chevron-right"></i>
+  </button>
 </div>
 
 <script>
