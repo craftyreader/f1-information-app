@@ -4,6 +4,8 @@ let driverJA = [];
 let sessionJA = [];
 let filteredDriverJA = [];
 let filteredSessionJA = [];
+let driverNamesList = [];
+// let driverData = [];
 
 async function getData(endpoint) {
   const url = BASE_URL + endpoint; // Replace with your website URL
@@ -40,7 +42,44 @@ async function getAPI () {
 
 function getFilteredLists () {
     filteredSessionJA = sessionJA.filter(session => session.session_name === "Race" && session.year === currentYear);
-    console.log(filteredSessionJA);
+    // console.log(filteredSessionJA);
+    const sessionKeyList = filteredSessionJA.map(session => session.session_key);
+    filteredDriverJA = driverJA.filter(driver => sessionKeyList.includes(driver.session_key));
+    const tempDriverNames = filteredDriverJA.map(driver => driver.name_acronym);
+    // console.table(tempDriverNames);
+    driverNamesList = [...new Set(tempDriverNames)];
+    // driverData = [];
+    // for(let i=0; i<driverNamesList.length; i++) {
+    //     driverData.push({
+    //         driver: driverNamesList[i],
+    //         totalPoints: []
+    //     })
+    // }
+    // console.table(driverData);
+}
+
+function fillMainContainer () {
+    const mainDiv = document.getElementById("mainContainer");
+    if(!mainDiv) return;
+    mainDiv.replaceChildren();
+    
+    // console.log(filteredSessionJA.length);
+    for(let i = 0; i < filteredSessionJA.length; i++) {
+        const item = filteredSessionJA[i];
+        const child = document.createElement("div");
+        // child.textContent = item.location;
+        // console.log(item);
+        mainDiv.append(child, item.country_code);
+    }
+
+    // console.log(driverNamesList.length);
+    for(let i = 0; i < driverNamesList.length; i++) {
+        const item = driverNamesList[i];
+        const child = document.createElement("div");
+        // child.textContent = item.location;
+        // console.log(item);
+        mainDiv.append(child, item);
+    }
 }
 
 function decreaseYear () {
@@ -69,21 +108,6 @@ function increaseYear () {
     }
     // console.log("increaseYear triggered; " + currentYear);
     document.getElementById("yearText").textContent = currentYear;
-}
-
-function fillMainContainer () {
-    const mainDiv = document.getElementById("mainContainer");
-    if(!mainDiv) return;
-    mainDiv.replaceChildren();
-
-    console.log(filteredSessionJA.length);
-    for(let i = 0; i < filteredSessionJA.length; i++) {
-        const item = filteredSessionJA[i];
-        const child = document.createElement("div");
-        // child.textContent = item.location;
-        console.log(item);
-        mainDiv.append(child, item.country_code);
-    }
 }
 
 document.getElementById("decreaseYearButton").onclick = decreaseYear;
