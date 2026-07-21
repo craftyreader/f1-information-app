@@ -11,6 +11,10 @@ let driverNamesList = [];
 let driverNumbersList = [];
 let driverData = [];
 let pointsList = [];
+let chartInstance = null;
+
+const canvas = document.getElementById("myChart");
+const ctx = canvas.getContext("2d");
 
 function decreaseYear() {
   if (currentYear > 2023) {
@@ -47,6 +51,7 @@ function fillMainContainer() {
   const mainDiv = document.getElementById("mainContainer");
   if (!mainDiv) return;
   mainDiv.replaceChildren();
+  plotGraph();
 
   // console.log(filteredSessionJA.length);
   //   for (let i = 0; i < filteredSessionJA.length; i++) {
@@ -165,10 +170,12 @@ async function getAPI() {
 }
 
 function plotGraph() {
-  const canvas = document.getElementById("myChart");
-  const ctx = canvas.getContext("2d");
+  if (chartInstance) {
+    chartInstance.destroy();
+    chartInstance = null;
+  }
 
-  new Chart(ctx, {
+  chartInstance = new Chart(ctx, {
     type: "line",
     data: {
       labels: filteredSessionJA.map((session) => session.circuit_short_name),
@@ -185,6 +192,16 @@ function plotGraph() {
           beginAtZero: true,
         },
       },
+      plugins: {
+        legend: {
+          labels: {
+            usePointStyle: true,
+            pointStyle: "line",
+          },
+        },
+      },
+      responsive: true,
+      maintainAspectRatio: false,
     },
   });
 }
@@ -197,5 +214,4 @@ window.addEventListener("load", async (event) => {
   console.log("API data fetched");
   getFilteredLists();
   fillMainContainer();
-  plotGraph();
 });
