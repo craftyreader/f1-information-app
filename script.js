@@ -10,9 +10,16 @@ let sessionKeyList = [];
 let driverNamesList = [];
 let driverNumbersList = [];
 let driverTeamsList = [];
+let sortedDriverNamesList = [];
+let sortedDriverNumbersList = [];
+let sortedDriverTeamsList = [];
 let driverData = [];
 let pointsList = [];
 let chartInstance = null;
+
+document.getElementById("toggleLegendButton").disabled = true;
+document.getElementById("increaseYearButton").disabled = true;
+document.getElementById("decreaseYearButton").disabled = true;
 
 const canvas = document.getElementById("myChart");
 const ctx = canvas.getContext("2d");
@@ -21,7 +28,7 @@ function decreaseYear() {
   if (currentYear > 2023) {
     currentYear--;
     document.getElementById("increaseYearButton").disabled = false;
-    getFilteredLists();
+    getLists();
     fillMainContainer();
   }
   if (currentYear <= 2023) {
@@ -35,7 +42,7 @@ function increaseYear() {
   if (currentYear < new Date().getFullYear()) {
     currentYear++;
     document.getElementById("decreaseYearButton").disabled = false;
-    getFilteredLists();
+    getLists();
     fillMainContainer();
   }
   if (currentYear >= new Date().getFullYear()) {
@@ -53,6 +60,8 @@ function fillMainContainer() {
   if (!mainDiv) return;
   mainDiv.replaceChildren();
   plotGraph();
+  document.getElementById("toggleLegendButton").disabled = false;
+  document.getElementById("decreaseYearButton").disabled = false;
 }
 
 function getPointsList(driverNumber) {
@@ -72,7 +81,7 @@ function getPointsList(driverNumber) {
   return pointsList; //[0, 25, 35, ...]
 }
 
-function getFilteredLists() {
+function getLists() {
   //filtered lists
   if (!sessionJA || !driverJA || !championshipJA) {
     console.error("array is empty");
@@ -93,53 +102,51 @@ function getFilteredLists() {
   );
 
   //driver lists
-  //   const tempDriverNames = filteredDriverJA.map((driver) => driver.name_acronym);
-  //   driverNamesList = [...new Set(tempDriverNames)];
-  //   const tempDriverNumbers = filteredDriverJA.map(
-  //     (driver) => driver.driver_number,
-  //   );
-  //   driverNumbersList = [...new Set(tempDriverNumbers)];
-  //   const tempDriverTeams = filteredDriverJA.map((driver) => driver.team_name);
-  //   driverTeamsList = [...new Set(tempDriverTeams)];
-  // console.log(driverNamesList);
-  // console.log(driverNumbersList);
-
-  // const uniqueByProperty = [...new Map(jsonArray.map(item => [item.id, item])).values()];
   const tempRemoveDuplicates = [
     ...new Map(
       filteredDriverJA.map((driver) => [driver.driver_number, driver]),
     ).values(),
   ];
-  //   const tempRemoveDuplicates = [
-  //    ...new Set(filteredDriverJA.map((driver) => JSON.stringify(driver))),
-  //  ].map((item) => JSON.parse(item));
   driverNamesList = tempRemoveDuplicates.map((driver) => driver.name_acronym);
   driverNumbersList = tempRemoveDuplicates.map(
     (driver) => driver.driver_number,
   );
   driverTeamsList = tempRemoveDuplicates.map((driver) => driver.team_name);
 
+  let tempPointsList = [];
+  let tempFinalPointsList = [];
+  for (let i = 0; i < driverNamesList.length; i++) {
+    tempPointsList = getPointsList(driverNumbersList[i]);
+    let tempFinalPoints = tempPointsList[tempPointsList.length - 1];
+    tempFinalPointsList.push(tempFinalPoints);
+  }
+
+  const indices = tempFinalPointsList.map((_, index) => index);
+  indices.sort((a, b) => tempFinalPointsList[b] - tempFinalPointsList[a]);
+  sortedDriverNamesList = indices.map((index) => driverNamesList[index]);
+  sortedDriverNumbersList = indices.map((index) => driverNumbersList[index]);
+  sortedDriverTeamsList = indices.map((index) => driverTeamsList[index]);
+
   //data list
   driverData = [];
   for (let i = 0; i < driverNamesList.length; i++) {
-    pointsList = getPointsList(driverNumbersList[i]);
-    // console.log(driverNumbersList[i]);
-    // console.log(pointsList);
+    let pointsList = getPointsList(sortedDriverNumbersList[i]);
     let tempBorderDash = null;
-    if (driverData.find((driver) => driver.team_name === driverTeamsList[i])) {
+    if (
+      driverData.find((driver) => driver.team_name === sortedDriverTeamsList[i])
+    ) {
       tempBorderDash = [5, 5];
     }
     driverData.push({
-      driver: driverNamesList[i],
-      team_name: driverTeamsList[i],
+      driver: sortedDriverNamesList[i],
+      team_name: sortedDriverTeamsList[i],
       totalPoints: pointsList,
       teamColor: filteredDriverJA.find(
-        (driver) => driver.driver_number === driverNumbersList[i],
+        (driver) => driver.driver_number === sortedDriverNumbersList[i],
       ).team_colour,
       borderDash: tempBorderDash,
     });
   }
-  //   console.log(driverData);
 }
 
 async function getData(endpoint) {
@@ -247,6 +254,6 @@ window.addEventListener("load", async (event) => {
   console.log("getting API data...");
   await getAPI();
   console.log("API data fetched");
-  getFilteredLists();
+  getLists();
   fillMainContainer();
 });
