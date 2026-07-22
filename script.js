@@ -9,6 +9,7 @@ let filteredChampionshipJA = [];
 let sessionKeyList = [];
 let driverNamesList = [];
 let driverNumbersList = [];
+let driverTeamsList = [];
 let driverData = [];
 let pointsList = [];
 let chartInstance = null;
@@ -52,24 +53,6 @@ function fillMainContainer() {
   if (!mainDiv) return;
   mainDiv.replaceChildren();
   plotGraph();
-
-  // console.log(filteredSessionJA.length);
-  //   for (let i = 0; i < filteredSessionJA.length; i++) {
-  //     const item = filteredSessionJA[i];
-  //     const child = document.createElement("div");
-  //     // child.textContent = item.location;
-  //     // console.log(item);
-  //     mainDiv.append(child, item.country_code);
-  //   }
-
-  //   // console.log(driverNamesList.length);
-  //   for (let i = 0; i < driverNamesList.length; i++) {
-  //     const item = driverNamesList[i];
-  //     const child = document.createElement("div");
-  //     // child.textContent = item.location;
-  //     // console.log(item);
-  //     mainDiv.append(child, item);
-  //   }
 }
 
 function getPointsList(driverNumber) {
@@ -110,30 +93,53 @@ function getFilteredLists() {
   );
 
   //driver lists
-  const tempDriverNames = filteredDriverJA.map((driver) => driver.name_acronym);
-  driverNamesList = [...new Set(tempDriverNames)];
-  const tempDriverNumbers = filteredDriverJA.map(
-    (driver) => driver.driver_number,
-  );
-  driverNumbersList = [...new Set(tempDriverNumbers)];
+  //   const tempDriverNames = filteredDriverJA.map((driver) => driver.name_acronym);
+  //   driverNamesList = [...new Set(tempDriverNames)];
+  //   const tempDriverNumbers = filteredDriverJA.map(
+  //     (driver) => driver.driver_number,
+  //   );
+  //   driverNumbersList = [...new Set(tempDriverNumbers)];
+  //   const tempDriverTeams = filteredDriverJA.map((driver) => driver.team_name);
+  //   driverTeamsList = [...new Set(tempDriverTeams)];
   // console.log(driverNamesList);
   // console.log(driverNumbersList);
+
+  // const uniqueByProperty = [...new Map(jsonArray.map(item => [item.id, item])).values()];
+  const tempRemoveDuplicates = [
+    ...new Map(
+      filteredDriverJA.map((driver) => [driver.driver_number, driver]),
+    ).values(),
+  ];
+  //   const tempRemoveDuplicates = [
+  //    ...new Set(filteredDriverJA.map((driver) => JSON.stringify(driver))),
+  //  ].map((item) => JSON.parse(item));
+  driverNamesList = tempRemoveDuplicates.map((driver) => driver.name_acronym);
+  driverNumbersList = tempRemoveDuplicates.map(
+    (driver) => driver.driver_number,
+  );
+  driverTeamsList = tempRemoveDuplicates.map((driver) => driver.team_name);
 
   //data list
   driverData = [];
   for (let i = 0; i < driverNamesList.length; i++) {
     pointsList = getPointsList(driverNumbersList[i]);
     // console.log(driverNumbersList[i]);
-    console.log(pointsList);
+    // console.log(pointsList);
+    let tempBorderDash = null;
+    if (driverData.find((driver) => driver.team_name === driverTeamsList[i])) {
+      tempBorderDash = [5, 5];
+    }
     driverData.push({
       driver: driverNamesList[i],
+      team_name: driverTeamsList[i],
       totalPoints: pointsList,
       teamColor: filteredDriverJA.find(
         (driver) => driver.driver_number === driverNumbersList[i],
       ).team_colour,
+      borderDash: tempBorderDash,
     });
   }
-  console.log(driverData);
+  //   console.log(driverData);
 }
 
 async function getData(endpoint) {
@@ -184,6 +190,7 @@ function plotGraph() {
         data: driver.totalPoints,
         borderColor: `#${driver.teamColor}`,
         borderWidth: 1,
+        borderDash: driver.borderDash || [],
       })),
     },
     options: {
@@ -194,17 +201,45 @@ function plotGraph() {
       },
       plugins: {
         legend: {
+          display: false,
           labels: {
             usePointStyle: true,
             pointStyle: "line",
+            generateLabels: (chart) => {
+              //everything same as default except for lineDash
+              return chart.data.datasets.map((dataset, i) => {
+                const meta = chart.getDatasetMeta(i);
+                const style = meta.controller.getStyle(0);
+                return {
+                  text: dataset.label,
+                  strokeStyle: style.borderColor,
+                  lineWidth: style.borderWidth,
+                  lineDash: dataset.borderDash || [], //changed to be same as dataset
+                  lineDashOffset: style.borderDashOffset,
+                  fillStyle: style.backgroundColor,
+                  hidden: !meta.visible,
+                  pointStyle: "line",
+                  datasetIndex: i,
+                };
+              });
+            },
           },
         },
       },
       responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: false, //resize with window
     },
   });
 }
+
+function toggleLegend() {
+  if (chartInstance) {
+    chartInstance.options.plugins.legend.display =
+      !chartInstance.options.plugins.legend.display;
+    chartInstance.update();
+  }
+}
+document.getElementById("toggleLegendButton").onclick = toggleLegend;
 
 window.addEventListener("load", async (event) => {
   console.log("The page and all resources are fully loaded." + currentYear);
