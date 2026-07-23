@@ -10,7 +10,7 @@
   text-align: center;
 }
 
-#yearContainer {
+#topContainer {
   /* padding: 1rem; */
   display: flex;
   flex-direction: row;
@@ -22,3 +22,31 @@
 #chartContainer {
   height: 80vh;
 }
+
+/* #infoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 10px;
+  grid-template-areas:
+    "raceInfoBox driverInfoBox"
+    "raceInfoBox driverResultsBox";
+}
+
+#raceInfoBox {
+  background-color: red;
+  padding: 10px;
+  grid-area: raceInfoBox;
+}
+
+#driverInfoBox {
+  background-color: blue;
+  padding: 10px;
+  grid-area: driverInfoBox;
+}
+
+#driverResultsBox {
+  background-color: green;
+  padding: 10px;
+  grid-area: driverResultsBox;
+} */

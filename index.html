@@ -17,7 +17,7 @@
   </head>
 
   <body>
-    <div id="yearContainer">
+    <div id="topContainer">
       <button id="decreaseYearButton">
         <i class="fa-solid fa-chevron-left"></i>
       </button>
@@ -28,12 +28,38 @@
       <button id="toggleLegendButton">
         <i class="fa-solid fa-info"></i>
       </button>
+      <div style="width: 1rem"></div>
+      <button id="zoomOutButton">
+        <i class="fa-solid fa-minus"></i>
+      </button>
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <button id="zoomInButton">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+      <button id="resetZoomButton">
+        <i class="fa-solid fa-rotate-left"></i>
+      </button>
     </div>
 
     <div id="mainContainer">Please wait...</div>
 
     <div id="chartContainer">
       <canvas id="myChart"></canvas>
+    </div>
+
+    <div id="infoGrid">
+      <div id="raceInfoBox">
+        <h2 id="raceInfoHeader">Race Information</h2>
+        <p id="raceInfoText"></p>
+      </div>
+      <div id="driverInfoBox">
+        <h2 id="driverInfoHeader">Driver Information</h2>
+        <p id="driverInfoText"></p>
+      </div>
+      <div id="driverResultsBox">
+        <h2 id="driverResultsHeader">Driver Results</h2>
+        <p id="driverResultsText"></p>
+      </div>
     </div>
   </body>
 </html>

@@ -10,16 +10,23 @@ let sessionKeyList = [];
 let driverNamesList = [];
 let driverNumbersList = [];
 let driverTeamsList = [];
+let finalPointsList = [];
 let sortedDriverNamesList = [];
 let sortedDriverNumbersList = [];
 let sortedDriverTeamsList = [];
+let sortedFinalPointsList = [];
 let driverData = [];
 let pointsList = [];
+
 let chartInstance = null;
+let zoomLevel = -1;
 
 document.getElementById("toggleLegendButton").disabled = true;
 document.getElementById("increaseYearButton").disabled = true;
 document.getElementById("decreaseYearButton").disabled = true;
+document.getElementById("resetZoomButton").disabled = true;
+document.getElementById("zoomInButton").disabled = true;
+document.getElementById("zoomOutButton").disabled = true;
 
 const canvas = document.getElementById("myChart");
 const ctx = canvas.getContext("2d");
@@ -30,6 +37,8 @@ function decreaseYear() {
     document.getElementById("increaseYearButton").disabled = false;
     getLists();
     fillMainContainer();
+    zoomLevel = -1;
+    document.getElementById("zoomOutButton").disabled = true;
   }
   if (currentYear <= 2023) {
     document.getElementById("decreaseYearButton").disabled = true;
@@ -44,6 +53,7 @@ function increaseYear() {
     document.getElementById("decreaseYearButton").disabled = false;
     getLists();
     fillMainContainer();
+    zoomLevel = -1;
   }
   if (currentYear >= new Date().getFullYear()) {
     document.getElementById("increaseYearButton").disabled = true;
@@ -62,6 +72,9 @@ function fillMainContainer() {
   plotGraph();
   document.getElementById("toggleLegendButton").disabled = false;
   document.getElementById("decreaseYearButton").disabled = false;
+  document.getElementById("resetZoomButton").disabled = false;
+  document.getElementById("zoomInButton").disabled = false;
+  document.getElementById("zoomOutButton").disabled = true;
 }
 
 function getPointsList(driverNumber) {
@@ -113,16 +126,22 @@ function getLists() {
   );
   driverTeamsList = tempRemoveDuplicates.map((driver) => driver.team_name);
 
+  finalPointsList = [];
+  sortedDriverNamesList = [];
+  sortedDriverNumbersList = [];
+  sortedDriverTeamsList = [];
+  sortedFinalPointsList = [];
+
   let tempPointsList = [];
-  let tempFinalPointsList = [];
   for (let i = 0; i < driverNamesList.length; i++) {
     tempPointsList = getPointsList(driverNumbersList[i]);
-    let tempFinalPoints = tempPointsList[tempPointsList.length - 1];
-    tempFinalPointsList.push(tempFinalPoints);
+    const tempFinalPoints = tempPointsList[tempPointsList.length - 1] ?? 0;
+    finalPointsList.push(tempFinalPoints);
   }
 
-  const indices = tempFinalPointsList.map((_, index) => index);
-  indices.sort((a, b) => tempFinalPointsList[b] - tempFinalPointsList[a]);
+  const indices = finalPointsList.map((_, index) => index);
+  indices.sort((a, b) => finalPointsList[b] - finalPointsList[a]);
+  sortedFinalPointsList = indices.map((index) => finalPointsList[index]);
   sortedDriverNamesList = indices.map((index) => driverNamesList[index]);
   sortedDriverNumbersList = indices.map((index) => driverNumbersList[index]);
   sortedDriverTeamsList = indices.map((index) => driverTeamsList[index]);
@@ -130,7 +149,7 @@ function getLists() {
   //data list
   driverData = [];
   for (let i = 0; i < driverNamesList.length; i++) {
-    let pointsList = getPointsList(sortedDriverNumbersList[i]);
+    const pointsList = getPointsList(sortedDriverNumbersList[i]);
     let tempBorderDash = null;
     if (
       driverData.find((driver) => driver.team_name === sortedDriverTeamsList[i])
@@ -141,9 +160,10 @@ function getLists() {
       driver: sortedDriverNamesList[i],
       team_name: sortedDriverTeamsList[i],
       totalPoints: pointsList,
-      teamColor: filteredDriverJA.find(
-        (driver) => driver.driver_number === sortedDriverNumbersList[i],
-      ).team_colour,
+      teamColor:
+        filteredDriverJA.find(
+          (driver) => driver.driver_number === sortedDriverNumbersList[i],
+        ).team_colour || "000000",
       borderDash: tempBorderDash,
     });
   }
@@ -204,6 +224,7 @@ function plotGraph() {
       scales: {
         y: {
           beginAtZero: true,
+          max: undefined,
         },
       },
       plugins: {
@@ -232,12 +253,15 @@ function plotGraph() {
             },
           },
         },
+        // zoom plugin
       },
       responsive: true,
       maintainAspectRatio: false, //resize with window
     },
   });
 }
+
+function setZoomLevels() {}
 
 function toggleLegend() {
   if (chartInstance) {
@@ -248,12 +272,76 @@ function toggleLegend() {
 }
 document.getElementById("toggleLegendButton").onclick = toggleLegend;
 
+function zoomIn() {
+  if (chartInstance) {
+    console.log(
+      "zoomIn triggered; max y-axis value: " +
+        chartInstance.options.scales.y.max,
+    );
+    if (zoomLevel < 0) {
+      document.getElementById("zoomOutButton").disabled = false;
+      chartInstance.options.scales.y.max =
+        sortedFinalPointsList[0] - (sortedFinalPointsList[0] % 50);
+      zoomLevel = 0;
+    } else {
+      chartInstance.options.scales.y.max =
+        sortedFinalPointsList[0] -
+        (sortedFinalPointsList[0] % 50) -
+        50 * (zoomLevel + 1);
+      zoomLevel++;
+      if (chartInstance.options.scales.y.max <= 50) {
+        document.getElementById("zoomInButton").disabled = true;
+      }
+    }
+    chartInstance.update();
+  }
+}
+function zoomOut() {
+  // need to fix
+  if (chartInstance) {
+    console.log(
+      "zoomOut triggered; max y-axis value: " +
+        chartInstance.options.scales.y.max,
+    );
+    if (zoomLevel <= 0) {
+      chartInstance.options.scales.y.max = undefined;
+      zoomLevel = -1;
+      document.getElementById("zoomOutButton").disabled = true;
+    } else {
+      document.getElementById("zoomInButton").disabled = false;
+      chartInstance.options.scales.y.max =
+        sortedFinalPointsList[0] -
+        (sortedFinalPointsList[0] % 50) -
+        50 * (zoomLevel - 1);
+      zoomLevel--;
+    }
+    chartInstance.update();
+  }
+}
+function resetZoom() {
+  if (chartInstance) {
+    chartInstance.options.scales.y.max = undefined;
+    chartInstance.update();
+    zoomLevel = -1;
+    document.getElementById("zoomInButton").disabled = false;
+    document.getElementById("zoomOutButton").disabled = true;
+    console.log(
+      "resetZoom triggered; max y-axis value: " +
+        chartInstance.options.scales.y.max,
+    );
+  }
+}
+document.getElementById("zoomInButton").onclick = zoomIn;
+document.getElementById("zoomOutButton").onclick = zoomOut;
+document.getElementById("resetZoomButton").onclick = resetZoom;
+
 window.addEventListener("load", async (event) => {
   console.log("The page and all resources are fully loaded." + currentYear);
   document.getElementById("yearText").textContent = currentYear;
   console.log("getting API data...");
   await getAPI();
   console.log("API data fetched");
+
   getLists();
   fillMainContainer();
 });
